@@ -9,6 +9,10 @@ from bson import ObjectId, json_util
 from flask_cors import cross_origin
 from datetime import date, datetime
 
+from flask import Flask, request, jsonify, session, redirect, url_for
+from flask_bcrypt import Bcrypt
+from functools import wraps
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, date):
@@ -20,6 +24,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 
+
 # MongoDB connection string
 mongo_uri = "mongodb+srv://Project:bmnp12105@cluster0.vgwcjai.mongodb.net/test?ssl=true&ssl_cert_reqs=CERT_NONE"
 client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
@@ -29,17 +34,165 @@ db = client.VaccinationProject
 
 # Define the collection
 collection = db.Patients
+admin_collection = db.Admin
+patient_collection = db.Patients
+staff_collection = db.Vaccination_center_staff
+bcrypt = Bcrypt(app)
 
-@app.route('/insert_data', methods=['POST'])
-def insert_data():
+# Define a decorator to check if the user is logged in
+def login_required(role=None):
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated_view(*args, **kwargs):
+            if 'user_id' not in session:
+                return jsonify({'error': 'Unauthorized'}), 401
+
+            # Check if the user has the required role
+            if role and session.get('role') != role:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+
+            return fn(*args, **kwargs)
+        return decorated_view
+    return wrapper
+@app.route('/create_admin', methods=['POST'])
+def create_admin():
     try:
         data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        # Hash the password using Flask-Bcrypt
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+        # Create the admin document
+        admin_document = {
+            '_id': ObjectId(),
+            'username': username,
+            'password': hashed_password,
+            'role': 'admin'
+        }
+
+        # Insert the admin document into the collection
+        result = admin_collection.insert_one(admin_document)
+
+        return jsonify({'message': 'Admin created successfully', 'admin_id': str(result.inserted_id)}), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Route to handle admin login
+@app.route('/login_admin', methods=['POST'])
+def login_admin():
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        # Find the admin in the database based on the provided username
+        admin = admin_collection.find_one({'username': username})
+
+        if admin and bcrypt.check_password_hash(admin['password'], password):
+            # If the admin exists and the password is correct
+            return jsonify({'message': 'Login successful for admin', 'admin_id': str(admin['_id']),'role': 'admin'}), 200
+            print(f"passed")
+        else:
+            # If the admin does not exist or the password is incorrect
+            return jsonify({'error': 'Invalid credentials'}), 401
+            print(f"failed")
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/create_staff', methods=['POST'])
+def create_staff():
+    try:
+        data = request.json
+
+        # Extract staff data from the request
+        username = data.get('username')
+        password = data.get('password')
+        staff_name = data.get('staff_name')
+        appointments_managed = data.get('appointmentsManaged', 0)
+        payments_handled = data.get('paymentsHandled', 0)
+
+        # Hash the password using Flask-Bcrypt
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+        # Create the staff document
+        staff_document = {
+            '_id': ObjectId(),
+            'username': username,
+            'password': hashed_password,
+            'role': 'staff',
+            'staff_name': staff_name,
+            'appointmentsManaged': appointments_managed,
+            'paymentsHandled': payments_handled
+        }
+
+        # Insert the staff document into the collection
+        result = staff_collection.insert_one(staff_document)
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Staff created successfully',
+            'staff_id': str(result.inserted_id)
+        }), 201
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+@app.route('/login_staff', methods=['POST'])
+def login_staff():
+    try:
+        data = request.get_json()
+        staff = staff_collection.find_one({'username': data['username']})
+
+        if staff and bcrypt.check_password_hash(staff['password'], data['password']):
+            session['user_id'] = str(staff['_id'])
+            session['role'] = 'staff'
+            return jsonify({'message': 'Login successful'})
+        else:
+            return jsonify({'message': 'Invalid credentials'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/create_patient', methods=['POST'])
+def create_patient():
+    try:
+        data = request.json
+
+        # Hash the password before storing it
+        hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+        data['password'] = hashed_password
+
         # Insert data into MongoDB
-        result = collection.insert_one(data)
-        return jsonify({"status": "success", "message": "Data inserted successfully", "inserted_id": str(result.inserted_id)})
+        result = patient_collection.insert_one(data)
+        return jsonify({"status": "success", "message": "Patient registered successfully", "inserted_id": str(result.inserted_id), "role": "Patient"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-    
+@app.route('/login_patient', methods=['POST'])
+def login_patient():
+    try:
+        data = request.json
+        entered_password = data['password']
+
+        # Find the patient by username
+        patient = patient_collection.find_one({'username': data['username']})
+
+        if patient and bcrypt.check_password_hash(patient['password'], entered_password):
+            # Passwords match, return success
+            print(f"valid credentials for {data['username']}")
+            return jsonify({"status": "success", "message": "Patient login successful", "role": "Patient"})
+        else:
+            # Invalid username or password
+            print(f"Invalid credentials for {data['username']}")
+            return jsonify({"status": "error", "message": "Invalid username or password"})
+
+    except Exception as e:
+        print(f"Error during patient login: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)})   
 password_reset_tokens = {}
 
 @app.route('/api/forgot-password', methods=['POST'])
