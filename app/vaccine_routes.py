@@ -129,3 +129,25 @@ def get_time_slots():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
+
+@vaccine_bp.route('/manufacturer', methods=['GET'])
+def get_manufacturer_data():
+    selected_vaccine = request.args.get('selected_vaccine')
+
+    if selected_vaccine is None:
+        return jsonify({'error': 'Please provide a selected_vaccine parameter'}), 400
+
+    # If selected_vaccine is a list, take the first element
+    if isinstance(selected_vaccine, list):
+        selected_vaccine = selected_vaccine[0]
+
+    manufacturer_collection = db.Vaccination_category
+
+    # Query the database for manufacturer data based on the selected vaccine
+    result = manufacturer_collection.find_one({'name': selected_vaccine})
+
+    if result is None:
+        return jsonify({'error': f'Manufacturer data not found for the selected vaccine {selected_vaccine}'}), 404
+
+    return jsonify({'vaccine': result['name'], 'manufacturer': result['manufacturer']})

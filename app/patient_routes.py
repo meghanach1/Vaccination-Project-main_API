@@ -59,7 +59,7 @@ def login_patient():
         if patient and bcrypt.checkpw(entered_password, patient['password'].encode('utf-8')):
             # Passwords match, return success
             print(f"valid credentials for {data['username']}")
-            return jsonify({"status": "success", "message": "Patient login successful", "role": "Patient"})
+            return jsonify({"status": "success", "message": "Patient login successful", "role": "Patient","patient_id": str(patient['_id'])})
         else:
             # Invalid username or password
             print(f"Invalid credentials for {data['username']}")
@@ -70,3 +70,19 @@ def login_patient():
         return jsonify({"status": "error", "message": str(e)})
 
 password_reset_tokens = {}
+
+@patient_bp.route('/save-medical-history', methods=['POST'])
+def save_medical_history():
+    try:
+        data = request.get_json()
+
+        # Access the Patient_History collection
+        patient_history_collection = db.Patient_History
+
+        # Save data to MongoDB
+        patient_history_collection.insert_one(data)
+
+        return jsonify(message='Medical history data saved successfully'), 201
+    except Exception as e:
+        print(f'Error saving medical history data: {e}')
+        return jsonify(message='Internal server error'), 500

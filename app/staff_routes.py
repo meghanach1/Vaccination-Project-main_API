@@ -69,7 +69,7 @@ def login_staff():
         if staff and bcrypt.checkpw(data['password'].encode('utf-8'), staff['password'].encode('utf-8')):
             session['user_id'] = str(staff['_id'])
             session['role'] = 'staff'
-            return jsonify({'message': 'Login successful'})
+            return jsonify({'message': 'Login successful',"staff_id": str(staff['_id'])})
         else:
             return jsonify({'message': 'Invalid credentials'})
 

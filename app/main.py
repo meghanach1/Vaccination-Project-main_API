@@ -8,6 +8,7 @@ from staff_routes import staff_bp
 from forgot_password import forgotpassword_bp
 from vaccine_routes import vaccine_bp
 from appointment_routes import appointment_bp
+from payment import payment_bp
 from flask_bcrypt import Bcrypt
 
 # Generate a secret key
@@ -26,7 +27,7 @@ def create_app():
     app.register_blueprint(forgotpassword_bp, url_prefix='/forgotpassword')
     app.register_blueprint(vaccine_bp, url_prefix='/vaccine')
     app.register_blueprint(appointment_bp, url_prefix='/appointment')
-    
+    app.register_blueprint(payment_bp, url_prefix='/payment')
 
     return app
 
