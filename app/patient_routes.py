@@ -86,3 +86,9 @@ def save_medical_history():
     except Exception as e:
         print(f'Error saving medical history data: {e}')
         return jsonify(message='Internal server error'), 500
+
+@patient_bp.route('/patients/<id>', methods=['GET'])
+def get_patient(id):
+    patient = db.Patients.find_one({"_id": ObjectId(id)})
+    output = json.loads(json_util.dumps(patient))
+    return output
