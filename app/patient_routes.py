@@ -1,8 +1,9 @@
 from functools import wraps
+from bson import ObjectId, json_util
 import bcrypt
 
 import certifi
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, json, jsonify, request, session
 from bson import ObjectId
 from pymongo import MongoClient
 from flask_bcrypt import Bcrypt
@@ -87,8 +88,26 @@ def save_medical_history():
         print(f'Error saving medical history data: {e}')
         return jsonify(message='Internal server error'), 500
 
-@patient_bp.route('/patients/<id>', methods=['GET'])
-def get_patient(id):
-    patient = db.Patients.find_one({"_id": ObjectId(id)})
-    output = json.loads(json_util.dumps(patient))
-    return output
+@patient_bp.route('/<patient_id>', methods=['GET'])
+def get_patient(patient_id):
+    try:
+        # Retrieve patient details from Patients collection
+        patient = db.Patients.find_one({"_id": ObjectId(patient_id)})
+        
+        # If patient not found, return 404
+        if not patient:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        # Merge firstName and lastName into full_name
+        patient['full_name'] = f"{patient['firstName']} {patient['lastName']}"
+
+        # Convert ObjectId to string for JSON serialization
+        patient['_id'] = str(patient['_id'])
+
+        # Prepare the output
+        output = json.loads(json_util.dumps(patient))
+
+        return jsonify(output), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -15,8 +15,9 @@ mongo_uri = "mongodb+srv://Project:bmnp12105@cluster0.vgwcjai.mongodb.net/test?s
 client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 db = client.VaccinationProject
 patient_collection = db.Patients
-@vaccine_bp.route('/get-vaccines', methods=['GET'])
+
 @cross_origin(origin='http://localhost:3000')
+@vaccine_bp.route('/get-vaccines', methods=['GET'])
 def get_vaccines():
     try:
         age = request.args.get('age')
@@ -31,30 +32,35 @@ def get_vaccines():
         # Convert age to an integer
         age = int(age)
 
+        # Fetch data from MongoDB based on age
         vaccines = db.Vaccines.find({"ageGroup.min": {"$lte": age}, "ageGroup.max": {"$gte": age}})
+
         recommended = []
         required = []
+
         for vaccine in vaccines:
-            if vaccine["required"]:
+            if vaccine.get("required"):
                 required.append({
                     "name": vaccine["name"],
                     "description": vaccine["description"],
                     "requiredDoses": vaccine["requiredDoses"],
                     "price": vaccine["price"]
                 })
-            if vaccine["recommended"]:
+
+            if vaccine.get("recommended"):
                 recommended.append({
                     "name": vaccine["name"],
                     "description": vaccine["description"],
                     "requiredDoses": vaccine["requiredDoses"],
                     "price": vaccine["price"]
-                })  
+                })
+
         output = json.loads(json_util.dumps({"recommended": recommended, "required": required}))
         return jsonify(output)
+
     except Exception as e:
         print(f"Error in /vaccines route: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 def convert_dates_to_strings(obj):
     if isinstance(obj, date):
@@ -130,6 +136,31 @@ def get_time_slots():
         return jsonify({'error': str(e)})
 
 
+
+
+
+
+@vaccine_bp.route('/<center_id>', methods=['GET'])
+
+def get_location(center_id):
+    try:
+        # Retrieve patient details from Patients collection
+        location = db.Vaccination_center.find_one({"_id": ObjectId(center_id)})
+        
+        # If patient not found, return 404
+        if not location:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        # Convert ObjectId to string for JSON serialization
+        location['_id'] = str(location['_id'])
+
+        # Prepare the output
+        output = json.loads(json_util.dumps(location))
+
+        return jsonify(output), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @vaccine_bp.route('/manufacturer', methods=['GET'])
 def get_manufacturer_data():
