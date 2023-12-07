@@ -111,3 +111,27 @@ def get_patient(patient_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@patient_bp.route('/api/update-patient/<patient_id>', methods=['PUT'])
+def update_patient(patient_id):
+    try:
+        # Ensure the provided patient_id is a valid ObjectId
+        if not ObjectId.is_valid(patient_id):
+            return jsonify({"error": "Invalid patient ID"}), 400
+
+        # Find the patient by ID
+        patient = db.Patients.find_one({"_id": ObjectId(patient_id)})
+
+        if not patient:
+            return jsonify({"error": "Patient not found"}), 404
+
+        # Get the updated data from the request JSON
+        updated_data = request.get_json()
+
+        # Update the patient's fields
+        db.Patients.update_one({"_id": ObjectId(patient_id)}, {"$set": updated_data})
+
+        return jsonify({"message": "Patient updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
